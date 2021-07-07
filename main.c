@@ -18,15 +18,19 @@ TimerHandle_t sender_timer;
 QueueHandle_t queue;
 #define Treceiver pdMS_TO_TICKS(200)
 int Tsender[]={100,140,180,220,260,300};
+/*Global variables to count the total number of sent, blocked and received messages
+-------------------------------------------------------------------------------*/
 int sentM=0;
 int blockedM=0;
 int receivedM=0;
-int i=0;
+//-----------------------------------------------------------------------------
+int i=0;  
 #define CCM_RAM __attribute__((section(".ccmram")))
 
 
 
-/*implementing the initialization function "init();"*/
+/*implementing the initialization function "init();"
+---------------------------------------------------------*/
 void init()
 {
 	trace_printf("the total number of successfully sent messages is: %d\n ",sentM);
@@ -35,6 +39,8 @@ void init()
 	blockedM=0;
     receivedM=0;
     xQueueReset(queue);
+/*if the Tsender array isn't over yet change the period of the sender timer, reset the receiver timer then increment i otherwise
+print "Game over" and end excution*/
     if(i != 6)
     {
     	xTimerChangePeriod(sender_timer,pdMS_TO_TICKS(Tsender[i]),0);
@@ -49,10 +55,12 @@ void init()
 		vQueueDelete(queue);
 		vTaskEndScheduler();
     }
+//---------------------------------------------------------
 }
 
 
-/*timers callback functions*/
+/*timers callback functions(basically give the semaphores to activate the dormant tasks)
+----------------------------------------------*/
 void receiver_callback(TimerHandle_t xTimer)
 {
 	if(receivedM != 500)
@@ -64,37 +72,40 @@ void sender_callback(TimerHandle_t xTimer)
 {
 xSemaphoreGive(sender_sem);
 }
+/*----------------------------------------------*/
 
-/*creating the sender and receiver tasks*/
+/*creating the sender and receiver tasks
+----------------------------------------------*/
 void sender_task(void*p)
 {
-	TickType_t Timesent;
-	char message_sent[20];
+	TickType_t Timesent;     //variable holds the current time in ticks
+	char message_sent[20];  //a buffer of to contain the message to be sent
 	while(1)
 	{
-		if(xSemaphoreTake(sender_sem,portMAX_DELAY))
+		if(xSemaphoreTake(sender_sem,portMAX_DELAY)) //the task is indefinitely blocked on the semaphore sender_sem 
 		{
-			Timesent=xTaskGetTickCount();
-			sprintf(message_sent,"Time is %lu",Timesent);
-			if(xQueueSend(queue,message_sent,0)!=pdPASS)
-			   blockedM++;
-			else sentM++;
+			Timesent=xTaskGetTickCount();  //getting the current time in system ticks
+			sprintf(message_sent,"Time is %lu",Timesent); //printing the message to the buffer
+			if(xQueueSend(queue,message_sent,0)!=pdPASS)  //communicating with the queue to send the message
+			   blockedM++;  //if the queue is full,the message is blocked and blockedM is increased 
+			else sentM++;  //the message was successfully sent to the queue and sentM is increased
 	    }
 	}
 }
 
 void receiver_task(void*p)
 {
-	char message_received[20];
+	char message_received[20];  //a buffer in which the message is received from the queue
 	while(1)
 	{
-		if(xSemaphoreTake(receiver_sem,portMAX_DELAY))
+		if(xSemaphoreTake(receiver_sem,portMAX_DELAY)) //the task is indefinitely blocked on the semaphore receiver_sem
 		{
-			if(xQueueReceive(queue,message_received,0)==pdTRUE)
-				{receivedM++; }
+			if(xQueueReceive(queue,message_received,0)==pdTRUE) //communicating with the queue to receive the message
+				{receivedM++; } //if the message was successfully received increment the counter
 		}
 	}
 }
+/*----------------------------------------------*/
 
 
 // ----- main() ---------------------------------------------------------------
